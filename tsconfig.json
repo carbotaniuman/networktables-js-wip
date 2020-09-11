@@ -28,16 +28,16 @@
     "noFallthroughCasesInSwitch": true /* Report errors for fallthrough cases in switch statement. */,
 
     /* Debugging Options */
-    "traceResolution": false /* Report module resolution log messages. */,
+    "traceResolution": false /* Report module resolution log message. */,
     "listEmittedFiles": false /* Print names of generated files part of the compilation. */,
     "listFiles": false /* Print names of files part of the compilation. */,
-    "pretty": true /* Stylize errors and messages using color and context. */,
+    "pretty": true /* Stylize errors and message using color and context. */,
 
     /* Experimental Options */
     // "experimentalDecorators": true /* Enables experimental support for ES7 decorators. */,
     // "emitDecoratorMetadata": true /* Enables experimental support for emitting type metadata for decorators. */,
 
-    "lib": ["es2017", "dom"],
+    "lib": ["es2020", "dom"],
     "types": [],
     "typeRoots": ["node_modules/@types", "src/types"]
   },
