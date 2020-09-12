@@ -1,4 +1,3 @@
-import { Decoder, Encoder } from '@msgpack/msgpack';
 import { UnreachableCaseError } from 'ts-essentials';
 
 export enum ValueType {
@@ -15,6 +14,8 @@ export enum ValueType {
   DoubleArray = 'double[]',
   StringArray = 'string[]',
 }
+
+// string | number | boolean | Uint8Array | boolean[] | number[] | string[]
 
 export type Value =
   | { type: ValueType.Integer; value: number }
@@ -61,13 +62,7 @@ export function defaultValue(type: ValueType): Value {
   }
 }
 
-const decoder = new Decoder();
-export function decode(buffer: ArrayLike<number> | ArrayBuffer): BinaryMessage {
-  //TODO: Validation
-  return decoder.decode(buffer) as BinaryMessage;
-}
-
-const encoder = new Encoder();
-export function encode(msg: BinaryMessage): Uint8Array {
-  return encoder.encode(msg);
+function a(type:ValueType) {
+  const z = defaultValue(type).value;
+  z
 }
