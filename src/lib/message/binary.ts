@@ -1,6 +1,6 @@
 import { UnreachableCaseError } from 'ts-essentials';
 
-export enum ValueType {
+export const enum ValueType {
   Integer = 'int',
   Float = 'float',
   Double = 'double',
@@ -13,6 +13,37 @@ export enum ValueType {
   FloatArray = 'float[]',
   DoubleArray = 'double[]',
   StringArray = 'string[]',
+}
+
+export function binaryId(type: ValueType): number {
+  switch (type) {
+    case ValueType.Integer:
+      return 2;
+    case ValueType.Float:
+      return 3;
+    case ValueType.Double:
+      return 1;
+    case ValueType.Boolean:
+      return 0;
+    case ValueType.Raw:
+      return 5;
+    case ValueType.Rpc:
+      return 6;
+    case ValueType.String:
+      return 4;
+    case ValueType.BooleanArray:
+      return 16;
+    case ValueType.IntegerArray:
+      return 18;
+    case ValueType.FloatArray:
+      return 19;
+    case ValueType.DoubleArray:
+      return 17;
+    case ValueType.StringArray:
+      return 20;
+    default:
+      throw new UnreachableCaseError(type);
+  }
 }
 
 // string | number | boolean | Uint8Array | boolean[] | number[] | string[]
@@ -60,9 +91,4 @@ export function defaultValue(type: ValueType): Value {
     default:
       throw new UnreachableCaseError(type);
   }
-}
-
-function a(type:ValueType) {
-  const z = defaultValue(type).value;
-  z
 }

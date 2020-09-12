@@ -1,6 +1,6 @@
 import { ValueType } from './binary';
 
-export enum MessageType {
+export const enum MessageType {
   PublishRequest = 'publish',
   PublishRelease = 'pubrel',
   SetFlags = 'setflags',
@@ -59,7 +59,7 @@ export interface Announce {
   data: {
     name: string;
     id: number;
-    type: string;
+    type: ValueType;
     flags: string[];
   };
 }
