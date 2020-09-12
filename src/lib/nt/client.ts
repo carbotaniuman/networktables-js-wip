@@ -20,13 +20,12 @@ export type SettableType =
   | boolean[]
   | number[]
   | string[];
-export type SettableValue = Extract<
-  Value,
-  { type: SettableValueType; value: SettableType }
->;
+export type SettableValue = Extract<Value,
+  { type: SettableValueType; value: SettableType }>;
 
 class InvalidMessageError extends Error {
   invalidMsg: TextMessage | BinaryMessage;
+
   constructor(message: string, invalidMsg: TextMessage | BinaryMessage) {
     super(message);
     this.invalidMsg = invalidMsg;
@@ -35,16 +34,15 @@ class InvalidMessageError extends Error {
 
 interface EntryData {
   path: string;
+
+  id?: number;
   data?:
-    | {
-        id: number;
-        value: Value;
-        timestamp: number;
-        flags: string[];
-      }
-    | { value: Value;
-    flags: string[];
-  };
+    {
+      value: Value;
+      timestamp: number;
+    }
+  flags?: string[];
+
 
   subuid?: number;
   publishing?: true;
@@ -73,31 +71,37 @@ export class NetworkTableConnection {
     this.ws = new WebSocket(url, ['networktables.first.wpi.edu']);
     this.ws.binaryType = 'arraybuffer';
 
-    this.ws.onmessage = (ev: MessageEvent<TextMessage | ArrayBuffer>) => {
-      const msg = ev.data;
+    this.ws.onmessage = (ev: MessageEvent<string | ArrayBuffer>) => {
 
-      if (msg instanceof ArrayBuffer) {
+      if (ev.data instanceof ArrayBuffer) {
         //stuff goes here
       } else {
+        const msg = JSON.parse(ev.data) as TextMessage;
+
         switch (msg.type) {
           case MessageType.Announce: {
-            //TODO: Update entry here
             const entryData: EntryData = {
               path: msg.data.name,
+              id: msg.data.id,
               data: {
-                id: msg.data.id,
                 value: defaultValue(msg.data.type),
                 timestamp: 0,
-                flags: msg.data.flags,
+                flags: msg.data.flags
               }
-            }
+            };
             this.paths.set(msg.data.name, entryData);
             this.topics.set(msg.data.id, entryData);
             break;
           }
           case MessageType.Unannounce: {
-            this.paths.delete(msg.data.name);
-            this.topics.delete(msg.data.id);
+            const entryData = this.paths.get(msg.data.name);
+
+            if(entryData !== undefined) {
+              this.paths.delete(msg.data.name);
+              this.topics.delete(msg.data.id);
+
+              entryData.id = undefined;
+            }
             break;
           }
           default:
@@ -117,33 +121,47 @@ export class NetworkTableConnection {
 
   private getOrMakeEntry(path: string): EntryData {
     let entryData = this.paths.get(path);
-    if(entryData === undefined) {
+    if (entryData === undefined) {
       entryData = {
-        path: path,
-      }
+        path: path
+      };
       this.paths.set(path, entryData);
     }
     return entryData;
   }
 
   // implementation detail - do not use unless you accept breakage
-  setValue(path: string, value: SettableValue): boolean {
-    const entryData = this.getOrMakeEntry(path)
+  setValue(path: string, value: SettableValue, isDefault: boolean = false): boolean {
+    const entryData = this.getOrMakeEntry(path);
 
+    if (!this.connected) {
+      if (!('data' in entryData)) {
+        entryData.data = {
+          value,
+          timestamp: isDefault ? 0 : 1,
+        };
+      }
+    } else {
+      if (!this.publishing(path)) {
+        this.publish(path, value.type);
+      }
+
+      // send binary frame
+    }
   }
 
   getValue(path: string, defaultValue: SettableValue): SettableValue {
-    const entryData = this.getOrMakeEntry(path)
+    const entryData = this.getOrMakeEntry(path);
 
-    if(!this.subscribed(path)) {
-      this.subscribe(path)
+    if (!this.subscribed(path)) {
+      this.subscribe(path);
     }
 
-    if(!entryData.data?.value) {
+    if (!entryData.data?.value) {
       return defaultValue;
     }
 
-    if(entryData.data.value.type !== defaultValue.type) {
+    if (entryData.data.value.type !== defaultValue.type) {
       return defaultValue;
     }
 
@@ -155,26 +173,26 @@ export class NetworkTableConnection {
   }
 
   getFlags(path: string): string[] {
-    const entryData = this.getOrMakeEntry(path)
+    const entryData = this.getOrMakeEntry(path);
 
-    if(!this.subscribed(path)) {
-      this.subscribe(path)
+    if (!this.subscribed(path)) {
+      this.subscribe(path);
     }
 
-    if(entryData?.data?.flags) {
-      return entryData.data.flags;
+    if (entryData.flags) {
+      return entryData.flags;
     }
 
     return [];
   }
 
   subscribe(path: string): boolean {
-    const entryData = this.getOrMakeEntry(path)
-    if(entryData.subuid) {
+    const entryData = this.getOrMakeEntry(path);
+    if (entryData.subuid) {
       return true;
     }
 
-    if(!this.connected) {
+    if (!this.connected) {
       return false;
     }
 
@@ -183,7 +201,7 @@ export class NetworkTableConnection {
         type: MessageType.Subscribe,
         data: {
           prefixes: [path],
-          subuid: this.counter++,
+          subuid: this.counter++
         }
       } as Subscribe
     ));
@@ -193,11 +211,11 @@ export class NetworkTableConnection {
 
   unsubscribe(path: string): boolean {
     const entryData = this.paths.get(path);
-    if(entryData === undefined) {
+    if (entryData === undefined) {
       return false;
     }
 
-    if(!entryData.subuid) {
+    if (!entryData.subuid) {
       return true;
     }
 
@@ -205,7 +223,7 @@ export class NetworkTableConnection {
       {
         type: MessageType.Unsubscribe,
         data: {
-          subuid: entryData.subuid,
+          subuid: entryData.subuid
         }
       } as Unsubscribe
     ));
@@ -217,23 +235,23 @@ export class NetworkTableConnection {
 
   subscribed(path: string): boolean {
     const entryData = this.paths.get(path);
-    if(entryData === undefined) {
+    if (entryData === undefined) {
       return false;
     }
     return entryData.subuid !== undefined;
   }
 
   publish(path: string, type: ValueType): boolean {
-    const entryData = this.getOrMakeEntry(path)
-    if(entryData.publishing) {
+    const entryData = this.getOrMakeEntry(path);
+    if (entryData.publishing) {
       return true;
     }
 
-    if(!this.connected) {
+    if (!this.connected) {
       return false;
     }
 
-    if (entryData?.data?.value.type !== undefined && entryData?.data?.value.type !== type) {
+    if (entryData.data?.value.type !== type) {
       return false;
     }
 
@@ -252,10 +270,10 @@ export class NetworkTableConnection {
 
   unpublish(path: string): boolean {
     const entryData = this.paths.get(path);
-    if(entryData === undefined) {
+    if (entryData === undefined) {
       return false;
     }
-    if(!entryData.publishing) {
+    if (!entryData.publishing) {
       return true;
     }
 
@@ -263,7 +281,7 @@ export class NetworkTableConnection {
       {
         type: MessageType.PublishRelease,
         data: {
-          name: path,
+          name: path
         }
       } as PublishRelease
     ));
@@ -274,17 +292,19 @@ export class NetworkTableConnection {
 
   publishing(path: string): boolean {
     const entryData = this.paths.get(path);
-    if(entryData === undefined) {
+    if (entryData === undefined) {
       return false;
     }
     return entryData.publishing ?? false;
   }
 
-  private timestamp() {}
+  private timestamp() {
+  }
 }
 
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
+
 function clamp(num: number, min: number, max: number) {
   return Math.min(Math.max(num, min), max);
 }
