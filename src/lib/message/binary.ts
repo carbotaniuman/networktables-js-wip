@@ -1,6 +1,6 @@
-import { UnreachableCaseError } from 'ts-essentials';
+import { UnreachableCaseError, ValueOf } from 'ts-essentials';
 
-export const enum ValueType {
+export const enum ValueId {
   Integer = 'int',
   Float = 'float',
   Double = 'double',
@@ -15,78 +15,123 @@ export const enum ValueType {
   StringArray = 'string[]',
 }
 
-export function binaryId(type: ValueType): number {
+export type BinaryMessage = [id: number, timestamp: number, type: ValueBinaryId, value: ValueType]
+
+export const enum ValueBinaryId {
+  Integer = 2,
+  Float = 3,
+  Double = 1,
+  Boolean = 0,
+  Raw = 5,
+  Rpc = 6,
+  String = 4,
+  BooleanArray = 16,
+  IntegerArray = 18,
+  FloatArray = 19,
+  DoubleArray = 17,
+  StringArray = 20,
+}
+
+
+export function binaryId(type: ValueId): ValueBinaryId {
   switch (type) {
-    case ValueType.Integer:
-      return 2;
-    case ValueType.Float:
-      return 3;
-    case ValueType.Double:
-      return 1;
-    case ValueType.Boolean:
-      return 0;
-    case ValueType.Raw:
-      return 5;
-    case ValueType.Rpc:
-      return 6;
-    case ValueType.String:
-      return 4;
-    case ValueType.BooleanArray:
-      return 16;
-    case ValueType.IntegerArray:
-      return 18;
-    case ValueType.FloatArray:
-      return 19;
-    case ValueType.DoubleArray:
-      return 17;
-    case ValueType.StringArray:
-      return 20;
+    case ValueId.Integer:
+      return ValueBinaryId.Integer;
+    case ValueId.Float:
+      return ValueBinaryId.Float;
+    case ValueId.Double:
+      return ValueBinaryId.Double;
+    case ValueId.Boolean:
+      return ValueBinaryId.Boolean;
+    case ValueId.Raw:
+      return ValueBinaryId.Raw;
+    case ValueId.Rpc:
+      return ValueBinaryId.Rpc;
+    case ValueId.String:
+      return ValueBinaryId.String;
+    case ValueId.BooleanArray:
+      return ValueBinaryId.BooleanArray;
+    case ValueId.IntegerArray:
+      return ValueBinaryId.IntegerArray;
+    case ValueId.FloatArray:
+      return ValueBinaryId.FloatArray;
+    case ValueId.DoubleArray:
+      return ValueBinaryId.DoubleArray;
+    case ValueId.StringArray:
+      return ValueBinaryId.StringArray;
     default:
       throw new UnreachableCaseError(type);
   }
 }
 
-// string | number | boolean | Uint8Array | boolean[] | number[] | string[]
+export function stringId(type: ValueBinaryId): ValueId {
+  switch (type) {
+    case ValueBinaryId.Integer:
+      return ValueId.Integer;
+    case ValueBinaryId.Float:
+      return ValueId.Float;
+    case ValueBinaryId.Double:
+      return ValueId.Double;
+    case ValueBinaryId.Boolean:
+      return ValueId.Boolean;
+    case ValueBinaryId.Raw:
+      return ValueId.Raw;
+    case ValueBinaryId.Rpc:
+      return ValueId.Rpc;
+    case ValueBinaryId.String:
+      return ValueId.String;
+    case ValueBinaryId.BooleanArray:
+      return ValueId.BooleanArray;
+    case ValueBinaryId.IntegerArray:
+      return ValueId.IntegerArray;
+    case ValueBinaryId.FloatArray:
+      return ValueId.FloatArray;
+    case ValueBinaryId.DoubleArray:
+      return ValueId.DoubleArray;
+    case ValueBinaryId.StringArray:
+      return ValueId.StringArray;
+    default:
+      throw new UnreachableCaseError(type);
+  }
+}
+
+export type ValueType = ValueOf<Pick<Value, 'value'>>
 
 export type Value =
-  | { type: ValueType.Integer; value: number }
-  | { type: ValueType.Float; value: number }
-  | { type: ValueType.Double; value: number }
-  | { type: ValueType.Boolean; value: boolean }
-  | { type: ValueType.Raw; value: Uint8Array }
-  | { type: ValueType.Rpc; value: Uint8Array }
-  | { type: ValueType.String; value: string }
-  | { type: ValueType.BooleanArray; value: boolean[] }
-  | { type: ValueType.IntegerArray; value: number[] }
-  | { type: ValueType.FloatArray; value: number[] }
-  | { type: ValueType.DoubleArray; value: number[] }
-  | { type: ValueType.StringArray; value: string[] };
+  | { type: ValueId.Integer; value: number }
+  | { type: ValueId.Float; value: number }
+  | { type: ValueId.Double; value: number }
+  | { type: ValueId.Boolean; value: boolean }
+  | { type: ValueId.Raw; value: Uint8Array }
+  | { type: ValueId.Rpc; value: Uint8Array }
+  | { type: ValueId.String; value: string }
+  | { type: ValueId.BooleanArray; value: boolean[] }
+  | { type: ValueId.IntegerArray; value: number[] }
+  | { type: ValueId.FloatArray; value: number[] }
+  | { type: ValueId.DoubleArray; value: number[] }
+  | { type: ValueId.StringArray; value: string[] };
 
-export type BinaryMessage = Value & {
-  timestamp: number;
-};
-
-export function defaultValue<T extends ValueType>(
+export function defaultValue<T extends ValueId>(
   type: T
 ): Extract<Value, { type: T }>;
-export function defaultValue(type: ValueType): Value {
+export function defaultValue(type: ValueId): Value {
   switch (type) {
-    case ValueType.Integer:
-    case ValueType.Float:
-    case ValueType.Double:
+    case ValueId.Integer:
+    case ValueId.Float:
+    case ValueId.Double:
       return { type, value: 0 };
-    case ValueType.Boolean:
+    case ValueId.Boolean:
       return { type, value: false };
-    case ValueType.Raw:
-    case ValueType.Rpc:
+    case ValueId.Raw:
+    case ValueId.Rpc:
       return { type, value: Uint8Array.of() };
-    case ValueType.String:
+    case ValueId.String:
       return { type, value: '' };
-    case ValueType.BooleanArray:
-    case ValueType.IntegerArray:
-    case ValueType.FloatArray:
-    case ValueType.DoubleArray:
-    case ValueType.StringArray:
+    case ValueId.BooleanArray:
+    case ValueId.IntegerArray:
+    case ValueId.FloatArray:
+    case ValueId.DoubleArray:
+    case ValueId.StringArray:
       return { type, value: [] };
     default:
       throw new UnreachableCaseError(type);

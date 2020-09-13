@@ -1,39 +1,39 @@
 import { ValueOf } from 'ts-essentials';
 
-import { Value, ValueType } from '../message/binary';
+import { Value, ValueId } from '../message/binary';
 
 import {
-  NetworkTableConnection,
-  SettableType,
-  SettableValue,
+  NetworkTableClient,
   SettableValueType,
+  SettableValue,
+  SettableValueId,
 } from './client';
 
 export class Entry {
-  private connection: NetworkTableConnection;
+  private connection: NetworkTableClient;
   path: string;
 
-  constructor(connection: NetworkTableConnection, path: string) {
+  constructor(connection: NetworkTableClient, path: string) {
     this.connection = connection;
     this.path = path;
   }
 
-  setValue<T extends SettableValueType>(
+  setValue<T extends SettableValueId>(
     type: T,
     value: ValueOf<Pick<Extract<Value, { type: T }>, 'value'>>
   ): boolean;
-  setValue(type: SettableValueType, value: SettableType): boolean {
+  setValue(type: SettableValueId, value: SettableValueType): boolean {
     return this.connection.setValue(this.path, {
       type,
       value,
     } as SettableValue);
   }
 
-  getValue<T extends SettableValueType>(
+  getValue<T extends SettableValueId>(
     type: T,
     defaultValue: ValueOf<Pick<Extract<Value, { type: T }>, 'value'>>
   ): ValueOf<Pick<Extract<Value, { type: T }>, 'value'>>;
-  getValue(type: SettableValueType, defaultValue: SettableType): SettableType {
+  getValue(type: SettableValueId, defaultValue: SettableValueType): SettableValueType {
     return this.connection.getValue(this.path, {
       type,
       value: defaultValue,
@@ -41,91 +41,91 @@ export class Entry {
   }
 
   setInteger(value: number): boolean {
-    return this.setValue(ValueType.Integer, value);
+    return this.setValue(ValueId.Integer, value);
   }
 
   setFloat(value: number): boolean {
-    return this.setValue(ValueType.Float, value);
+    return this.setValue(ValueId.Float, value);
   }
 
   setDouble(value: number): boolean {
-    return this.setValue(ValueType.Double, value);
+    return this.setValue(ValueId.Double, value);
   }
 
   setBoolean(value: boolean): boolean {
-    return this.setValue(ValueType.Boolean, value);
+    return this.setValue(ValueId.Boolean, value);
   }
 
   setRaw(value: Uint8Array): boolean {
-    return this.setValue(ValueType.Raw, value);
+    return this.setValue(ValueId.Raw, value);
   }
 
   setString(value: string): boolean {
-    return this.setValue(ValueType.String, value);
+    return this.setValue(ValueId.String, value);
   }
 
   setBooleanArray(value: boolean[]): boolean {
-    return this.setValue(ValueType.BooleanArray, value);
+    return this.setValue(ValueId.BooleanArray, value);
   }
 
   setIntegerArray(value: number[]): boolean {
-    return this.setValue(ValueType.IntegerArray, value);
+    return this.setValue(ValueId.IntegerArray, value);
   }
 
   setFloatArray(value: number[]): boolean {
-    return this.setValue(ValueType.FloatArray, value);
+    return this.setValue(ValueId.FloatArray, value);
   }
 
   setDoubleArray(value: number[]): boolean {
-    return this.setValue(ValueType.DoubleArray, value);
+    return this.setValue(ValueId.DoubleArray, value);
   }
 
   setStringArray(value: string[]): boolean {
-    return this.setValue(ValueType.StringArray, value);
+    return this.setValue(ValueId.StringArray, value);
   }
 
   getInteger(value: number): number {
-    return this.getValue(ValueType.Integer, value);
+    return this.getValue(ValueId.Integer, value);
   }
 
   getFloat(defaultValue: number): number {
-    return this.getValue(ValueType.Float, defaultValue);
+    return this.getValue(ValueId.Float, defaultValue);
   }
 
   getDouble(defaultValue: number): number {
-    return this.getValue(ValueType.Double, defaultValue);
+    return this.getValue(ValueId.Double, defaultValue);
   }
 
   getBoolean(defaultValue: boolean): boolean {
-    return this.getValue(ValueType.Boolean, defaultValue);
+    return this.getValue(ValueId.Boolean, defaultValue);
   }
 
   getRaw(defaultValue: Uint8Array): Uint8Array {
-    return this.getValue(ValueType.Raw, defaultValue);
+    return this.getValue(ValueId.Raw, defaultValue);
   }
 
   getString(defaultValue: string): string {
-    return this.getValue(ValueType.String, defaultValue);
+    return this.getValue(ValueId.String, defaultValue);
   }
 
   getBooleanArray(defaultValue: boolean[]): boolean[] {
-    return this.getValue(ValueType.BooleanArray, defaultValue);
+    return this.getValue(ValueId.BooleanArray, defaultValue);
   }
 
   getIntegerArray(defaultValue: number[]): number[] {
-    return this.getValue(ValueType.IntegerArray, defaultValue);
+    return this.getValue(ValueId.IntegerArray, defaultValue);
   }
 
   getFloatArray(defaultValue: number[]): number[] {
-    return this.getValue(ValueType.FloatArray, defaultValue);
+    return this.getValue(ValueId.FloatArray, defaultValue);
   }
 
   getDoubleArray(defaultValue: number[]): number[] {
-    return this.getValue(ValueType.DoubleArray, defaultValue);
+    return this.getValue(ValueId.DoubleArray, defaultValue);
   }
 
   getStringArray(defaultValue: string[]): string[] {
-    return this.getValue(ValueType.StringArray, defaultValue);
+    return this.getValue(ValueId.StringArray, defaultValue);
   }
 
   setFlags(flags: string[]): boolean {
@@ -136,11 +136,11 @@ export class Entry {
     return this.connection.getFlags(this.path);
   }
 
-  subscribe(): void {
+  subscribe(): boolean {
     return this.connection.subscribe(this.path);
   }
 
-  unsubscribe(): void {
+  unsubscribe(): boolean {
     return this.connection.unsubscribe(this.path);
   }
 
@@ -148,7 +148,7 @@ export class Entry {
     return this.connection.subscribed(this.path);
   }
 
-  publish(type: ValueType): boolean {
+  publish(type: ValueId): boolean {
     return this.connection.publish(this.path, type);
   }
 
@@ -160,9 +160,9 @@ export class Entry {
     return this.connection.publishing(this.path);
   }
 
-  exists(): boolean {
-    return this.connection.exists(this.path);
-  }
+  // exists(): boolean {
+  //   return this.connection.exists(this.path);
+  // }
 
   //TODO: Maybe remove
   connected(): boolean {

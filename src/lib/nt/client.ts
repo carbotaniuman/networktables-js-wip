@@ -1,8 +1,9 @@
+import { decode, encode } from '@msgpack/msgpack';
+
 import {
-  BinaryMessage,
-  defaultValue,
-  Value,
-  ValueType
+  BinaryMessage, stringId,
+  Value, ValueBinaryId,
+  ValueId, ValueType
 } from '../message/binary';
 import {
   MessageType,
@@ -11,17 +12,10 @@ import {
   TextMessage, Unsubscribe
 } from '../message/text';
 
-export type SettableValueType = Exclude<ValueType, ValueType.Rpc>;
-export type SettableType =
-  | string
-  | number
-  | boolean
-  | Uint8Array
-  | boolean[]
-  | number[]
-  | string[];
+export type SettableValueId = Exclude<ValueId, ValueId.Rpc>;
+export type SettableValueType = ValueType;
 export type SettableValue = Extract<Value,
-  { type: SettableValueType; value: SettableType }>;
+  { type: SettableValueId; value: SettableValueType }>;
 
 class InvalidMessageError extends Error {
   invalidMsg: TextMessage | BinaryMessage;
@@ -43,25 +37,24 @@ interface EntryData {
     }
   flags?: string[];
 
-
   subuid?: number;
   publishing?: true;
   published?: true;
 }
 
-export class NetworkTableConnection {
+export class NetworkTableClient {
   private paths: Map<string, EntryData>;
   private topics: Map<number, EntryData>;
   private ws: WebSocket;
   private counter = 0;
 
-  private _connected: boolean = false;
+  private timestampOffset = 0;
   get connected(): boolean {
-    return this._connected;
+    return this.timestampOffset != 0;
   }
 
   onerror:
-    | ((this: NetworkTableConnection, error: InvalidMessageError) => unknown)
+    | ((this: NetworkTableClient, error: InvalidMessageError) => unknown)
     | null = null;
 
   constructor(url: string) {
@@ -71,26 +64,55 @@ export class NetworkTableConnection {
     this.ws = new WebSocket(url, ['networktables.first.wpi.edu']);
     this.ws.binaryType = 'arraybuffer';
 
-    this.ws.onmessage = (ev: MessageEvent<string | ArrayBuffer>) => {
+    this.ws.onclose = () => {
+      this.timestampOffset = 0;
 
+      this.paths.forEach((value) => {
+        value.publishing = undefined;
+        value.subuid = undefined;
+        value.id = undefined;
+      })
+    }
+
+    this.ws.onopen = () => {
+      this.ws.send(encode(timestampMessage()));
+    }
+
+    this.ws.onmessage = (ev: MessageEvent<string | ArrayBuffer>) => {
       if (ev.data instanceof ArrayBuffer) {
-        //stuff goes here
+        const [id, timestamp, dataType, dataValue] = decode(ev.data) as BinaryMessage;
+        if(id == -1) {
+          this.timestampOffset = timestamp - (value as number);
+          return;
+        }
+
+        const value = {
+          type: stringId(dataType),
+          value:dataValue,
+        } as Value
+
+        // we must have gotten an announcement msg already, this null assert is safe
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        this.topics.get(id)!.data = {
+          timestamp,
+          value
+        };
       } else {
+        console.log(ev.data)
         const msg = JSON.parse(ev.data) as TextMessage;
 
         switch (msg.type) {
           case MessageType.Announce: {
-            const entryData: EntryData = {
-              path: msg.data.name,
-              id: msg.data.id,
-              data: {
-                value: defaultValue(msg.data.type),
-                timestamp: 0,
-                flags: msg.data.flags
-              }
-            };
-            this.paths.set(msg.data.name, entryData);
-            this.topics.set(msg.data.id, entryData);
+            const entryData = this.getOrMakeEntry(msg.data.name);
+            entryData.flags = msg.data.flags
+
+            // we assume the id cannot change
+            if(entryData.id === undefined) {
+              entryData.id = msg.data.id;
+
+              this.paths.set(msg.data.name, entryData);
+              this.topics.set(msg.data.id, entryData);
+            }
             break;
           }
           case MessageType.Unannounce: {
@@ -131,23 +153,34 @@ export class NetworkTableConnection {
   }
 
   // implementation detail - do not use unless you accept breakage
-  setValue(path: string, value: SettableValue, isDefault: boolean = false): boolean {
+  setValue(path: string, value: SettableValue, isDefault = false): boolean {
     const entryData = this.getOrMakeEntry(path);
 
-    if (!this.connected) {
-      if (!('data' in entryData)) {
-        entryData.data = {
-          value,
-          timestamp: isDefault ? 0 : 1,
-        };
+    if (entryData.data) {
+      if (entryData.data.value.type !== value.type) {
+        return false;
       }
+    }
+
+    if (!this.connected) {
+      entryData.data = {
+        value,
+        timestamp: isDefault ? 0 : 1
+      };
+
     } else {
+      entryData.data = {
+        value,
+        timestamp: this.timestamp(),
+      };
+
       if (!this.publishing(path)) {
         this.publish(path, value.type);
       }
 
-      // send binary frame
+      //TODO: send msgpack frame
     }
+    return true;
   }
 
   getValue(path: string, defaultValue: SettableValue): SettableValue {
@@ -168,8 +201,9 @@ export class NetworkTableConnection {
     return entryData.data.value;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setFlags(path: string, flags: string[]): boolean {
-
+    return false;
   }
 
   getFlags(path: string): string[] {
@@ -196,7 +230,7 @@ export class NetworkTableConnection {
       return false;
     }
 
-    this.ws.send(JSON.stringify(
+    this.sendMessage(
       {
         type: MessageType.Subscribe,
         data: {
@@ -204,7 +238,7 @@ export class NetworkTableConnection {
           subuid: this.counter++
         }
       } as Subscribe
-    ));
+    );
 
     return true;
   }
@@ -219,14 +253,14 @@ export class NetworkTableConnection {
       return true;
     }
 
-    this.ws.send(JSON.stringify(
+    this.sendMessage(
       {
         type: MessageType.Unsubscribe,
         data: {
           subuid: entryData.subuid
         }
       } as Unsubscribe
-    ));
+    );
 
     entryData.subuid = undefined;
 
@@ -241,7 +275,7 @@ export class NetworkTableConnection {
     return entryData.subuid !== undefined;
   }
 
-  publish(path: string, type: ValueType): boolean {
+  publish(path: string, type: ValueId): boolean {
     const entryData = this.getOrMakeEntry(path);
     if (entryData.publishing) {
       return true;
@@ -255,7 +289,7 @@ export class NetworkTableConnection {
       return false;
     }
 
-    this.ws.send(JSON.stringify(
+    this.sendMessage(
       {
         type: MessageType.PublishRequest,
         data: {
@@ -263,7 +297,7 @@ export class NetworkTableConnection {
           type: type
         }
       } as PublishRequest
-    ));
+    );
 
     return true;
   }
@@ -277,14 +311,14 @@ export class NetworkTableConnection {
       return true;
     }
 
-    this.ws.send(JSON.stringify(
+    this.sendMessage(
       {
         type: MessageType.PublishRelease,
         data: {
           name: path
         }
       } as PublishRelease
-    ));
+    );
 
     entryData.publishing = undefined;
     return true;
@@ -298,13 +332,26 @@ export class NetworkTableConnection {
     return entryData.publishing ?? false;
   }
 
+  private sendMessage(msg: TextMessage): void {
+    this.ws.send(JSON.stringify([msg]));
+  }
+
   private timestamp() {
+    return 0;
   }
 }
 
-const I32_MIN = -2147483648;
-const I32_MAX = 2147483647;
-
-function clamp(num: number, min: number, max: number) {
-  return Math.min(Math.max(num, min), max);
+function nowMicros(): number {
+  return Date.now() * 1000;
 }
+
+function timestampMessage(): BinaryMessage {
+  return [-1, 0, ValueBinaryId.Integer, nowMicros()];
+}
+
+// const I32_MIN = -2147483648;
+// const I32_MAX = 2147483647;
+//
+// function clamp(num: number, min: number, max: number) {
+//   return Math.min(Math.max(num, min), max);
+// }

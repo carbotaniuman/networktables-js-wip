@@ -1,4 +1,4 @@
-import { ValueType } from './binary';
+import { ValueId } from './binary';
 
 export const enum MessageType {
   PublishRequest = 'publish',
@@ -25,7 +25,7 @@ export interface PublishRequest {
   type: MessageType.PublishRequest;
   data: {
     name: string;
-    type: ValueType;
+    type: ValueId;
   };
 }
 
@@ -59,7 +59,7 @@ export interface Announce {
   data: {
     name: string;
     id: number;
-    type: ValueType;
+    type: ValueId;
     flags: string[];
   };
 }
