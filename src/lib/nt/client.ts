@@ -82,7 +82,7 @@ export class NetworkTableClient {
       if (ev.data instanceof ArrayBuffer) {
         const [id, timestamp, dataType, dataValue] = decode(ev.data) as BinaryMessage;
         if(id == -1) {
-          this.timestampOffset = timestamp - (value as number);
+          this.timestampOffset = timestamp - (dataValue as number);
           return;
         }
 
@@ -98,7 +98,6 @@ export class NetworkTableClient {
           value
         };
       } else {
-        console.log(ev.data)
         const msg = JSON.parse(ev.data) as TextMessage;
 
         switch (msg.type) {
