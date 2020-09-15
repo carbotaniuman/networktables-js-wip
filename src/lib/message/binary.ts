@@ -1,4 +1,13 @@
 import { UnreachableCaseError, ValueOf } from 'ts-essentials';
+import { Encoder } from '@msgpack/msgpack';
+import {
+  ExtensionCodec,
+  ExtensionCodecType
+} from '@msgpack/msgpack/src/ExtensionCodec';
+import {
+  DEFAULT_INITIAL_BUFFER_SIZE,
+  DEFAULT_MAX_DEPTH
+} from '@msgpack/msgpack/src/Encoder';
 
 export const enum ValueId {
   Integer = 'int',
@@ -137,3 +146,14 @@ export function defaultValue(type: ValueId): Value {
       throw new UnreachableCaseError(type);
   }
 }
+
+const encoder = new Encoder();
+const f32Encoder = new Encoder(
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  true,
+  undefined,
+);

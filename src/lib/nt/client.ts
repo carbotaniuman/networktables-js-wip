@@ -89,14 +89,18 @@ export class NetworkTableClient {
         const value = {
           type: stringId(dataType),
           value:dataValue,
-        } as Value
+        } as Value;
 
         // we must have gotten an announcement msg already, this null assert is safe
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        this.topics.get(id)!.data = {
-          timestamp,
-          value
-        };
+        const topic = this.topics.get(id)!;
+
+        if(!topic.data || topic.data.timestamp < timestamp) {
+          topic.data = {
+            timestamp,
+            value
+          };
+        }
       } else {
         const msg = JSON.parse(ev.data) as TextMessage;
 
@@ -336,7 +340,7 @@ export class NetworkTableClient {
   }
 
   private timestamp() {
-    return 0;
+    return nowMicros() + this.timestampOffset;
   }
 }
 
@@ -348,9 +352,3 @@ function timestampMessage(): BinaryMessage {
   return [-1, 0, ValueBinaryId.Integer, nowMicros()];
 }
 
-// const I32_MIN = -2147483648;
-// const I32_MAX = 2147483647;
-//
-// function clamp(num: number, min: number, max: number) {
-//   return Math.min(Math.max(num, min), max);
-// }

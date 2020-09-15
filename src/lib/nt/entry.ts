@@ -4,9 +4,9 @@ import { Value, ValueId } from '../message/binary';
 
 import {
   NetworkTableClient,
-  SettableValueType,
   SettableValue,
   SettableValueId,
+  SettableValueType,
 } from './client';
 
 export class Entry {
