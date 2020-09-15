@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { decode, encode } from '@msgpack/msgpack';
 
 import {
@@ -39,8 +40,16 @@ interface EntryData {
 
   subuid?: number;
   publishing?: true;
-  published?: true;
+  published?: 'weak' | 'strong';
 }
+
+type FilledEntryData = EntryData & {
+  data:
+    {
+      value: Value;
+      timestamp: number;
+    }
+};
 
 export class NetworkTableClient {
   private paths: Map<string, EntryData>;
@@ -49,6 +58,7 @@ export class NetworkTableClient {
   private counter = 0;
 
   private timestampOffset = 0;
+
   get connected(): boolean {
     return this.timestampOffset != 0;
   }
@@ -68,34 +78,69 @@ export class NetworkTableClient {
       this.timestampOffset = 0;
 
       this.paths.forEach((value) => {
+        if (value.id != undefined) {
+          this.topics.delete(value.id);
+          this.paths.delete(value.path);
+        }
+
+        if (value.published) {
+          // invariant of `data` existing maintained by value in `published`
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          value.data!.timestamp = value.published === 'weak' ? 0 : 1;
+        }
+
         value.publishing = undefined;
         value.subuid = undefined;
         value.id = undefined;
-      })
-    }
+      });
+    };
 
     this.ws.onopen = () => {
       this.ws.send(encode(timestampMessage()));
-    }
+
+      this.paths.forEach((v) => {
+        // invariant that `value.published` and `value.data` are nonnull
+        // is established by `onclose`
+        const value = v as FilledEntryData;
+
+        if (value.data.timestamp === 1) {
+          value.data.timestamp = 2;
+          this.sendValue(value as FilledEntryData);
+        }
+      });
+    };
 
     this.ws.onmessage = (ev: MessageEvent<string | ArrayBuffer>) => {
       if (ev.data instanceof ArrayBuffer) {
         const [id, timestamp, dataType, dataValue] = decode(ev.data) as BinaryMessage;
-        if(id == -1) {
-          this.timestampOffset = timestamp - (dataValue as number);
+        if (id == -1) {
+          const oldOffset = this.timestampOffset;
+          this.timestampOffset = (timestamp - (dataValue as number)) / 2;
+
+          if (oldOffset == 0) {
+            this.paths.forEach((v) => {
+              if (v.data?.timestamp === 0 || v.data?.timestamp === 1) {
+                // invariant that `value.published` and `value.data` are nonnull
+                // is established by `onclose`
+                const value = v as FilledEntryData;
+                value.data.timestamp = timestamp;
+                this.sendValue(value as FilledEntryData);
+              }
+            });
+          }
           return;
         }
 
         const value = {
           type: stringId(dataType),
-          value:dataValue,
+          value: dataValue
         } as Value;
 
         // we must have gotten an announcement msg already, this null assert is safe
         // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const topic = this.topics.get(id)!;
 
-        if(!topic.data || topic.data.timestamp < timestamp) {
+        if (!topic.data || topic.data.timestamp < timestamp) {
           topic.data = {
             timestamp,
             value
@@ -107,10 +152,10 @@ export class NetworkTableClient {
         switch (msg.type) {
           case MessageType.Announce: {
             const entryData = this.getOrMakeEntry(msg.data.name);
-            entryData.flags = msg.data.flags
+            entryData.flags = msg.data.flags;
 
             // we assume the id cannot change
-            if(entryData.id === undefined) {
+            if (entryData.id === undefined) {
               entryData.id = msg.data.id;
 
               this.paths.set(msg.data.name, entryData);
@@ -121,7 +166,7 @@ export class NetworkTableClient {
           case MessageType.Unannounce: {
             const entryData = this.paths.get(msg.data.name);
 
-            if(entryData !== undefined) {
+            if (entryData !== undefined) {
               this.paths.delete(msg.data.name);
               this.topics.delete(msg.data.id);
 
@@ -165,25 +210,34 @@ export class NetworkTableClient {
       }
     }
 
+    if(isDefault && !entryData.published) {
+      entryData.published = "weak";
+    } else {
+      entryData.published = "strong";
+    }
+
     if (!this.connected) {
       entryData.data = {
         value,
         timestamp: isDefault ? 0 : 1
       };
-
     } else {
       entryData.data = {
         value,
-        timestamp: this.timestamp(),
+        timestamp: this.timestamp()
       };
 
-      if (!this.publishing(path)) {
-        this.publish(path, value.type);
-      }
-
-      //TODO: send msgpack frame
+      this.sendValue(entryData as FilledEntryData);
     }
     return true;
+  }
+
+  private sendValue(entry: FilledEntryData): void {
+    if (!this.publishing(entry.path)) {
+      this.publish(entry.path, entry.data.value.type);
+    }
+
+    this.ws.send(encode([entry.id, this.timestamp(), entry.data.value.type, entry.data.value.value]))
   }
 
   getValue(path: string, defaultValue: SettableValue): SettableValue {
@@ -204,8 +258,9 @@ export class NetworkTableClient {
     return entryData.data.value;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   setFlags(path: string, flags: string[]): boolean {
+    //TODO: Stuff here
+
     return false;
   }
 
